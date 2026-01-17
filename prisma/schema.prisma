@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * =========================
+ * ENUMS
+ * =========================
+ */
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ProductType {
+  FIXED
+  WEIGHT_BASED
+}
+
+enum OptionType {
+  RADIO
+  SELECT
+  CHECKBOX
+  MULTISELECT
+}
+
+enum PriceModifierType {
+  NONE
+  FIXED
+  PER_KG
+  PERCENT
+}
+
+/**
+ * =========================
+ * USERS
+ * =========================
+ */
+model User {
+  id       String  @id @default(uuid())
+  name     String
+  email    String  @unique
+  password String
+  role     Role    @default(CUSTOMER)
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addresses Address[]
+  orders    Order[]
+}
+
+/**
+ * =========================
+ * ADDRESS (JP friendly)
+ * =========================
+ */
+model Address {
+  id         String  @id @default(uuid())
+  userId     String
+  postalCode String
+  prefecture String
+  city       String
+  address1   String
+  address2   String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+/**
+ * =========================
+ * CATEGORIES
+ * =========================
+ */
+model Category {
+  id       String  @id @default(uuid())
+  name     String
+  slug     String  @unique
+  parentId String?
+  active   Boolean @default(true)
+  sort     Int     @default(0)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+
+  products ProductCategory[]
+}
+
+/**
+ * =========================
+ * PRODUCTS
+ * =========================
+ */
+model Product {
+  id              String      @id @default(uuid())
+  name            String
+  sku             String?     @unique
+  price     Decimal  
+  description     String?
+  type            ProductType
+  basePrice       Int?
+  pricePerKg      Int?
+  defaultWeightKg Float?
+  minWeightKg     Float?
+  maxWeightKg     Float?
+  active          Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categories   ProductCategory[]
+  optionGroups OptionGroup[]
+  stock        Stock?
+  orderItems   OrderItem[]
+}
+
+/**
+ * =========================
+ * PRODUCT ↔ CATEGORY
+ * =========================
+ */
+model ProductCategory {
+  productId  String
+  categoryId String
+
+  product  Product  @relation(fields: [productId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@id([productId, categoryId])
+}
+
+/**
+ * =========================
+ * OPTIONS
+ * =========================
+ */
+model OptionGroup {
+  id        String     @id @default(uuid())
+  productId String
+  title     String
+  type      OptionType
+  required  Boolean    @default(false)
+  sort      Int        @default(0)
+  condition Json?
+
+  product Product       @relation(fields: [productId], references: [id])
+  values  OptionValue[]
+}
+
+model OptionValue {
+  id                 String            @id @default(uuid())
+  optionGroupId      String
+  label              String
+  priceModifierType  PriceModifierType @default(NONE)
+  priceModifierValue Int?
+  weightDeltaKg      Float?
+  weightOverrideKg   Float?
+  yieldRules         Json?
+
+  optionGroup OptionGroup @relation(fields: [optionGroupId], references: [id])
+}
+
+/**
+ * =========================
+ * STOCK
+ * =========================
+ */
+model Stock {
+  id        String @id @default(uuid())
+  productId String @unique
+  quantity  Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+/**
+ * =========================
+ * ORDERS
+ * =========================
+ */
+model Order {
+  id     String      @id @default(uuid())
+  userId String
+  status OrderStatus @default(PENDING)
+  total  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id])
+  items   OrderItem[]
+  payment Payment?
+}
+
+/**
+ * =========================
+ * ORDER ITEMS
+ * =========================
+ */
+model OrderItem {
+  id            String @id @default(uuid())
+  orderId       String
+  productId     String
+  quantity      Int
+  basePrice     Int?
+  pricePerKg    Int?
+  finalWeightKg Float?
+  total         Int
+
+  order   Order             @relation(fields: [orderId], references: [id])
+  product Product           @relation(fields: [productId], references: [id])
+  options OrderItemOption[]
+}
+
+model OrderItemOption {
+  id             String @id @default(uuid())
+  orderItemId    String
+  optionGroupId  String
+  optionValueId  String
+  label          String
+  priceImpact    Int?
+  weightImpactKg Float?
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+}
+
+/**
+ * =========================
+ * PAYMENTS
+ * =========================
+ */
+model Payment {
+  id      String        @id @default(uuid())
+  orderId String        @unique
+  method  String
+  status  PaymentStatus @default(PENDING)
+  amount  Int
+
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
