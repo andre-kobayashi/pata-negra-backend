@@ -1,14 +1,10 @@
-import { IsArray, IsOptional, IsString } from "class-validator";
-
 export class PricingQuoteDto {
-  @IsString()
   productId: string;
+  quantity?: number; // default 1
 
-  // IDs dos OptionValues selecionados
-  @IsArray()
-  optionValueIds: string[];
-
-  // opcional: quantidade (padrão 1)
-  @IsOptional()
-  quantity?: number;
+  // seleções do usuário
+  selections: {
+    groupCode: string;   // ex: "SIZE", "CUT_STYLE"
+    optionId: string;    // id da AttributeOption
+  }[];
 }

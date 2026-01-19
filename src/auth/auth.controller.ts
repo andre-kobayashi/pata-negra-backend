@@ -16,28 +16,31 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
-  @Post("login")
-  async login(
-    @Body() body: { email?: string; password?: string },
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { email, password } = body;
+@Post("login")
+async login(
+  @Body() body: { email?: string; password?: string },
+  @Res({ passthrough: true }) res: Response,
+) {
+  const { email, password } = body;
 
-    if (!email || !password) {
-      throw new BadRequestException("Email e senha são obrigatórios");
-    }
-
-    const result = await this.authService.login(email, password);
-
-    res.cookie("token", result.accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false, // true em produção
-      path: "/",
-    });
-
-    return { user: result.user };
+  if (!email || !password) {
+    throw new BadRequestException("Email e senha são obrigatórios");
   }
+
+  const result = await this.authService.login(email, password);
+// Mantemos o cookie para compatibilidade com Middleware
+  res.cookie("token", result.accessToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false, // true em produção
+    path: "/",
+    maxAge: 86400 * 1000, // 24 horas
+  });
+
+  // MUDANÇA AQUI: Retornamos o objeto completo (user + accessToken)
+  // Agora o frontend vai encontrar o data.accessToken
+  return result; 
+}
 
   @Post("logout")
   logout(@Res({ passthrough: true }) res: Response) {

@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
-import { ProductType } from "@prisma/client";
+import { ProductKind } from "@prisma/client";
 
 export class UpdateProductDto {
   @IsOptional()
@@ -15,12 +15,30 @@ export class UpdateProductDto {
   sku?: string;
 
   @IsOptional()
-  @IsEnum(ProductType)
-  type?: ProductType;
+  @IsEnum(ProductKind)
+  kind?: ProductKind;
+
+  // SIMPLE
+  @IsOptional()
+  @IsInt()
+  priceFixed?: number;
 
   @IsOptional()
   @IsNumber()
-  price?: number;
+  weightFixedKg?: number;
+
+  // CONFIGURABLE
+  @IsOptional()
+  @IsInt()
+  basePricePerKg?: number;
+
+  @IsOptional()
+  @IsNumber()
+  baseWeightKg?: number;
+
+  @IsOptional()
+  @IsInt()
+  basePrepDays?: number;
 
   @IsOptional()
   @IsBoolean()

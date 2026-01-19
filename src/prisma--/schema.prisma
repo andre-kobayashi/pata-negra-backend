@@ -35,9 +35,9 @@ enum PaymentStatus {
 }
 
 enum ProductKind {
-  SIMPLE // produto fixo, preço/peso fixo
-  CONFIGURABLE // carnes/blocos com etapas
-  BUNDLE // kit/combos
+  SIMPLE        // produto fixo, preço/peso fixo
+  CONFIGURABLE  // carnes/blocos com etapas
+  BUNDLE        // kit/combos
 }
 
 enum AttributeInputType {
@@ -49,9 +49,9 @@ enum AttributeInputType {
 
 enum PriceModifierType {
   NONE
-  FIXED // soma direta em ienes (ex: -1000)
-  PER_KG // soma por kg (ex: +200 por kg)
-  PERCENT // porcentagem em cima do subtotal
+  FIXED     // soma direta em ienes (ex: -1000)
+  PER_KG    // soma por kg (ex: +200 por kg)
+  PERCENT   // porcentagem em cima do subtotal
 }
 
 /**
@@ -161,14 +161,16 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  categories ProductCategory[]
-  attributes ProductAttributeGroup[]
-  stock      Stock?
-  orderItems OrderItem[]
+  categories   ProductCategory[]
+  attributes   ProductAttributeGroup[]
+  stock        Stock?
+  orderItems   OrderItem[]
 
   // BUNDLE
+ 
   bundleChildren ProductBundleItem[] @relation("BundleParent")
   bundleParents  ProductBundleItem[] @relation("BundleChild")
+  bundleItems ProductBundleItem[] @relation("BundleParent")
 
   // Se quiser representar “Rump = alcatra + picanha”
   components ProductComponent[] @relation("ProductComponentsParent")
@@ -202,7 +204,7 @@ model ProductCategory {
  */
 model AttributeGroup {
   id        String             @id @default(uuid())
-  name      String // ex: "Tamanho da peça"
+  name      String             // ex: "Tamanho da peça"
   code      String             @unique // ex: "SIZE", "CUT_PREF", "CUT_STYLE"
   inputType AttributeInputType
   required  Boolean            @default(false)
@@ -211,8 +213,8 @@ model AttributeGroup {
   // regras/condições globais do grupo (opcional)
   condition Json?
 
-  options  AttributeOption[]
-  products ProductAttributeGroup[]
+  options   AttributeOption[]
+  products  ProductAttributeGroup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -221,11 +223,11 @@ model AttributeGroup {
 }
 
 model AttributeOption {
-  id      String  @id @default(uuid())
-  groupId String
-  label   String // ex: "Média 4.5kg"
-  sku     String? // sku interno do option (opcional)
-  sort    Int     @default(0)
+  id        String  @id @default(uuid())
+  groupId   String
+  label     String  // ex: "Média 4.5kg"
+  sku       String? // sku interno do option (opcional)
+  sort      Int     @default(0)
 
   // PREÇO
   priceModifierType  PriceModifierType @default(NONE)
@@ -253,12 +255,12 @@ model AttributeOption {
 }
 
 model ProductAttributeGroup {
-  id        String @id @default(uuid())
+  id        String  @id @default(uuid())
   productId String
   groupId   String
 
   // ordem do passo no produto (1,2,3…)
-  stepOrder Int @default(0)
+  stepOrder Int     @default(0)
 
   // overrides por produto
   requiredOverride Boolean?
@@ -277,17 +279,26 @@ model ProductAttributeGroup {
  * =========================
  */
 model ProductBundleItem {
-  id             String @id @default(uuid())
-  bundleId       String
-  childProductId String
-  quantity       Int    @default(1)
+  id              String @id @default(uuid())
+  bundleId        String
+  childProductId  String
+  quantity        Int @default(1)
 
-  bundle Product @relation("BundleParent", fields: [bundleId], references: [id], onDelete: Cascade)
-  child  Product @relation("BundleChild", fields: [childProductId], references: [id], onDelete: Cascade)
+  bundle Product @relation(
+    "BundleParent",
+    fields: [bundleId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  child Product @relation(
+    "BundleChild",
+    fields: [childProductId],
+    references: [id],
+    onDelete: Cascade
+  )
 
   @@unique([bundleId, childProductId])
-  @@index([bundleId])
-  @@index([childProductId])
 }
 
 /**
@@ -348,14 +359,14 @@ model Order {
  * Guarda snapshot do produto/seleções e cálculo final.
  */
 model OrderItem {
-  id        String @id @default(uuid())
-  orderId   String
-  productId String
-  quantity  Int
+  id            String @id @default(uuid())
+  orderId       String
+  productId     String
+  quantity      Int
 
   // snapshot base
-  productName    String
-  productSku     String?
+  productName   String
+  productSku    String?
   basePricePerKg Int?
   baseWeightKg   Float?
 
@@ -382,16 +393,16 @@ model OrderItemSelection {
   id          String @id @default(uuid())
   orderItemId String
 
-  groupId     String?
-  optionId    String?
-  groupCode   String?
-  groupName   String?
+  groupId   String?
+  optionId  String?
+  groupCode String?
+  groupName String?
   optionLabel String?
 
   // impactos já aplicados (snapshot)
-  priceImpact    Int? // ienes
+  priceImpact    Int?   // ienes
   weightImpactKg Float? // kg
-  extraPrepDays  Int? // dias
+  extraPrepDays  Int?   // dias
 
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 

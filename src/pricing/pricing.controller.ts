@@ -7,7 +7,7 @@ import { Public } from "../common/decorators/public.decorator";
 export class PricingController {
   constructor(private readonly service: PricingService) {}
 
-  // Quote precisa ser público (frontend da loja vai usar)
+  // Público (frontend da loja)
   @Public()
   @Post("quote")
   quote(@Body() dto: PricingQuoteDto) {
