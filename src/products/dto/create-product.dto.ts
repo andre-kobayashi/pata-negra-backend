@@ -1,5 +1,6 @@
-import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
-import { ProductKind } from "@prisma/client";
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, IsArray } from "class-validator";
+import { ProductKind, StorageType } from "@prisma/client";
+import { Transform, Type } from "class-transformer"; // 👈 Importante
 
 export class CreateProductDto {
   @IsString()
@@ -16,30 +17,63 @@ export class CreateProductDto {
   @IsEnum(ProductKind)
   kind: ProductKind;
 
-  // SIMPLE
   @IsOptional()
-  @IsInt()
-  priceFixed?: number;
+  @IsEnum(StorageType)
+  storageType?: StorageType;
+
+  // 🔥 Conversão Automática de String para Number
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number) 
+  costPrice?: number;
 
   @IsOptional()
   @IsNumber()
-  weightFixedKg?: number;
+  @Type(() => Number)
+  promoPrice?: number;
 
-  // CONFIGURABLE
   @IsOptional()
-  @IsInt()
+  @IsNumber()
+  @Type(() => Number)
+  priceOnline?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  priceRetail?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  stock?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
   basePricePerKg?: number;
 
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   baseWeightKg?: number;
 
   @IsOptional()
   @IsInt()
+  @Type(() => Number)
   basePrepDays?: number;
 
+  // 🔥 Conversão de String JSON para Array Real
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  stock?: number;
+  @IsArray()
+  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  categoryIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @Transform(({ value }) => (typeof value === 'string' ? JSON.parse(value) : value))
+  attributeGroupIds?: string[];
+
+  @IsOptional() @IsString() image?: string;
+  @IsOptional() @IsString() seoTitle?: string;
+  @IsOptional() @IsString() seoDescription?: string;
 }

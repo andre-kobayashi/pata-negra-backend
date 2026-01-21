@@ -1,5 +1,11 @@
-// backend/src/categories/dto/create-category.dto.ts
-import { IsBoolean, IsInt, IsOptional, IsString, IsNotEmpty } from "class-validator";
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+} from "class-validator";
 import { Transform, Type } from "class-transformer";
 
 export class CreateCategoryDto {
@@ -28,8 +34,11 @@ export class CreateCategoryDto {
   @Transform(({ value }) => (value === "" || value === "null" ? null : value))
   parentId?: string;
 
+  /* =========================
+     STATUS
+  ========================= */
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => value === "true" || value === true)
   @IsBoolean()
   active?: boolean;
 
@@ -37,4 +46,17 @@ export class CreateCategoryDto {
   @Type(() => Number)
   @IsInt()
   sort?: number;
+
+  /* =========================
+     🔥 REGRA DE MARKUP ONLINE
+  ========================= */
+  @IsOptional()
+  @Transform(({ value }) => value === "true" || value === true)
+  @IsBoolean()
+  onlineMarkupActive?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  onlineMarkupPercent?: number;
 }

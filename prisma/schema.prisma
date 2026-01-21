@@ -35,9 +35,9 @@ enum PaymentStatus {
 }
 
 enum ProductKind {
-  SIMPLE // produto fixo, preço/peso fixo
-  CONFIGURABLE // carnes/blocos com etapas
-  BUNDLE // kit/combos
+  SIMPLE
+  CONFIGURABLE
+  BUNDLE
 }
 
 enum AttributeInputType {
@@ -49,14 +49,23 @@ enum AttributeInputType {
 
 enum PriceModifierType {
   NONE
-  FIXED // soma direta em ienes (ex: -1000)
-  PER_KG // soma por kg (ex: +200 por kg)
-  PERCENT // porcentagem em cima do subtotal
+  FIXED
+  PER_KG
+  PERCENT
+}
+
+/**
+ * 🔥 NOVO – LOGÍSTICA
+ */
+enum StorageType {
+  SECO
+  REFRIGERADO
+  CONGELADO
 }
 
 /**
  * =========================
- * USERS
+ * USERS & ADDRESS
  * =========================
  */
 model User {
@@ -74,11 +83,6 @@ model User {
   orders    Order[]
 }
 
-/**
- * =========================
- * ADDRESS (JP friendly)
- * =========================
- */
 model Address {
   id         String  @id @default(uuid())
   userId     String
@@ -88,16 +92,15 @@ model Address {
   address1   String
   address2   String?
 
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 /**
  * =========================
- * CATEGORIES (com SEO + imagem)
+ * CATEGORIES
  * =========================
  */
 model Category {
@@ -105,7 +108,7 @@ model Category {
   name        String
   slug        String  @unique
   description String? @db.Text
-  image       String? // ex: "/uploads/categories/abc.webp"
+  image       String?
 
   seoTitle       String?
   seoDescription String?
@@ -114,9 +117,12 @@ model Category {
   active   Boolean @default(true)
   sort     Int     @default(0)
 
-  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children Category[] @relation("CategoryTree")
+  /** 🔥 NOVO – MARKUP ONLINE */
+  onlineMarkupActive  Boolean @default(false)
+  onlineMarkupPercent Float   @default(12.0)
 
+  parent   Category?         @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[]        @relation("CategoryTree")
   products ProductCategory[]
 
   createdAt DateTime @default(now())
@@ -130,12 +136,6 @@ model Category {
  * =========================
  * PRODUCTS
  * =========================
- * Regras:
- * - basePricePerKg: preço por kg do produto (carne/bloco)
- * - baseWeightKg: peso base usado no motor (normalmente 1kg)
- * - Para SIMPLE: você pode usar priceFixed e weightFixedKg
- * - Para CONFIGURABLE: usa basePricePerKg/baseWeightKg + atributos
- * - Para BUNDLE: itens em ProductBundleItem
  */
 model Product {
   id          String      @id @default(uuid())
@@ -145,17 +145,29 @@ model Product {
   kind        ProductKind @default(SIMPLE)
   active      Boolean     @default(true)
 
-  // SIMPLE (fixo)
+  image          String?
+  seoTitle       String?
+  seoDescription String?
+
+  /** 🔥 NOVO – LOGÍSTICA */
+  storageType StorageType @default(SECO)
+
+  /** 🔥 NOVO – PRECIFICAÇÃO MULTI-CAMADA */
+  costPrice      Int?      // Preço de Custo
+  priceRetail    Int?      // Preço de Venda na Loja Física (Base)
+  priceOnline    Int?      // Preço de Venda Online (Base + 12%)
+  promoPrice     Int?      // Preço Promocional
+
+  /** SIMPLE */
   priceFixed    Int?
   weightFixedKg Float?
 
-  // CONFIGURABLE (carne/bloco)
+  /** CONFIGURABLE */
   basePricePerKg Int?
   baseWeightKg   Float? @default(1.0)
   minWeightKg    Float?
   maxWeightKg    Float?
 
-  // Prazo base (se quiser já separar do frete)
   basePrepDays Int? @default(0)
 
   createdAt DateTime @default(now())
@@ -166,19 +178,16 @@ model Product {
   stock      Stock?
   orderItems OrderItem[]
 
-  // BUNDLE
   bundleChildren ProductBundleItem[] @relation("BundleParent")
   bundleParents  ProductBundleItem[] @relation("BundleChild")
-
-  // Se quiser representar “Rump = alcatra + picanha”
-  components ProductComponent[] @relation("ProductComponentsParent")
+  components     ProductComponent[]
 
   @@index([active, kind])
 }
 
 /**
  * =========================
- * PRODUCT ↔ CATEGORY
+ * RELAÇÕES
  * =========================
  */
 model ProductCategory {
@@ -189,60 +198,43 @@ model ProductCategory {
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([productId, categoryId])
-  @@index([categoryId])
 }
 
 /**
  * =========================
- * ATTRIBUTES (reutilizáveis, estilo Magento)
+ * ATTRIBUTES
  * =========================
- * AttributeGroup = "passo" (ex: Tamanho da peça)
- * AttributeOption = opções do passo (ex: 4.5kg, 7.5kg)
- * ProductAttributeGroup = liga produto aos passos e define ordem/condições
  */
 model AttributeGroup {
   id        String             @id @default(uuid())
-  name      String // ex: "Tamanho da peça"
-  code      String             @unique // ex: "SIZE", "CUT_PREF", "CUT_STYLE"
+  name      String
+  code      String             @unique
   inputType AttributeInputType
   required  Boolean            @default(false)
   sort      Int                @default(0)
-
-  // regras/condições globais do grupo (opcional)
-  condition Json?
 
   options  AttributeOption[]
   products ProductAttributeGroup[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([sort])
 }
 
 model AttributeOption {
   id      String  @id @default(uuid())
   groupId String
-  label   String // ex: "Média 4.5kg"
-  sku     String? // sku interno do option (opcional)
+  label   String
+  sku     String?
   sort    Int     @default(0)
 
-  // PREÇO
   priceModifierType  PriceModifierType @default(NONE)
-  priceModifierValue Int? // ienes (FIXED/PER_KG) ou % (PERCENT)
+  priceModifierValue Float?
 
-  // PESO
-  // Para o seu caso “peça média 4.5kg”: weightMultiplier = 4.5
   weightMultiplier Float?
-  // delta/override extras se precisar
   weightDeltaKg    Float?
   weightOverrideKg Float?
 
-  // PRAZO
   extraPrepDays Int? @default(0)
-
-  // regras tipo yield etc
-  yieldRules Json?
+  yieldRules    Json?
 
   group AttributeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
@@ -256,24 +248,20 @@ model ProductAttributeGroup {
   id        String @id @default(uuid())
   productId String
   groupId   String
+  stepOrder Int    @default(0)
 
-  // ordem do passo no produto (1,2,3…)
-  stepOrder Int @default(0)
-
-  // overrides por produto
   requiredOverride Boolean?
-  condition        Json? // condição para aparecer (ex: só se CUT_PREF = "cortes personalizados")
+  condition        Json?
 
   product Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   group   AttributeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([productId, groupId])
-  @@index([productId, stepOrder])
 }
 
 /**
  * =========================
- * BUNDLE (kit/combos)
+ * BUNDLES
  * =========================
  */
 model ProductBundleItem {
@@ -286,45 +274,30 @@ model ProductBundleItem {
   child  Product @relation("BundleChild", fields: [childProductId], references: [id], onDelete: Cascade)
 
   @@unique([bundleId, childProductId])
-  @@index([bundleId])
-  @@index([childProductId])
 }
 
-/**
- * =========================
- * PRODUCT COMPONENTS (ex: Rump = Alcatra + Picanha)
- * =========================
- * Opcional, mas resolve seu caso de "2 carnes no mesmo bloco".
- */
 model ProductComponent {
   id            String @id @default(uuid())
   parentId      String
-  componentName String // ex: "Alcatra", "Picanha"
+  componentName String
   sort          Int    @default(0)
 
-  parent Product @relation("ProductComponentsParent", fields: [parentId], references: [id], onDelete: Cascade)
-
-  @@index([parentId, sort])
+  parent Product @relation(fields: [parentId], references: [id], onDelete: Cascade)
 }
 
 /**
  * =========================
- * STOCK
+ * STOCK & ORDERS
  * =========================
  */
 model Stock {
-  id        String @id @default(uuid())
-  productId String @unique
-  quantity  Int    @default(0)
+  id        String  @id @default(uuid())
+  productId String  @unique
+  quantity  Float   @default(0) // Alterado de Int para Float para aceitar decimais
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
-/**
- * =========================
- * ORDERS
- * =========================
- */
 model Order {
   id     String      @id @default(uuid())
   userId String
@@ -334,75 +307,52 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user    User        @relation(fields: [userId], references: [id])
   items   OrderItem[]
   payment Payment?
 
   @@index([userId, createdAt])
 }
 
-/**
- * =========================
- * ORDER ITEMS
- * =========================
- * Guarda snapshot do produto/seleções e cálculo final.
- */
 model OrderItem {
-  id        String @id @default(uuid())
-  orderId   String
-  productId String
-  quantity  Int
+  id             String @id @default(uuid())
+  orderId        String
+  productId      String
+  quantity       Int
 
-  // snapshot base
   productName    String
   productSku     String?
   basePricePerKg Int?
   baseWeightKg   Float?
+  finalWeightKg  Float?
+  unitPrice      Int
+  total          Int
+  extraPrepDays  Int? @default(0)
 
-  // resultado do motor
-  finalWeightKg Float?
-  unitPrice     Int // preço unitário final já calculado (por item)
-  total         Int // unitPrice * quantity
-
-  // prazo calculado (pra empurrar calendário)
-  extraPrepDays Int? @default(0)
-
-  createdAt DateTime @default(now())
-
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-
+  order      Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product              @relation(fields: [productId], references: [id])
   selections OrderItemSelection[]
 
-  @@index([orderId])
-  @@index([productId])
+  createdAt DateTime @default(now())
 }
 
 model OrderItemSelection {
   id          String @id @default(uuid())
   orderItemId String
-
   groupId     String?
   optionId    String?
+
   groupCode   String?
   groupName   String?
   optionLabel String?
 
-  // impactos já aplicados (snapshot)
-  priceImpact    Int? // ienes
-  weightImpactKg Float? // kg
-  extraPrepDays  Int? // dias
+  priceImpact    Float?
+  weightImpactKg Float?
+  extraPrepDays  Int?
 
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-
-  @@index([orderItemId])
 }
 
-/**
- * =========================
- * PAYMENTS
- * =========================
- */
 model Payment {
   id      String        @id @default(uuid())
   orderId String        @unique
@@ -410,7 +360,6 @@ model Payment {
   status  PaymentStatus @default(PENDING)
   amount  Int
 
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }

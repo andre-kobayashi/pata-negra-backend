@@ -1,48 +1,19 @@
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from "class-validator";
-import { ProductKind } from "@prisma/client";
+import { PartialType } from "@nestjs/mapped-types";
+import { IsBoolean, IsInt, IsOptional, Min } from "class-validator";
+import { CreateProductDto } from "./create-product.dto";
 
-export class UpdateProductDto {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @IsOptional()
-  @IsString()
-  sku?: string;
-
-  @IsOptional()
-  @IsEnum(ProductKind)
-  kind?: ProductKind;
-
-  // SIMPLE
-  @IsOptional()
-  @IsInt()
-  priceFixed?: number;
-
-  @IsOptional()
-  @IsNumber()
-  weightFixedKg?: number;
-
-  // CONFIGURABLE
-  @IsOptional()
-  @IsInt()
-  basePricePerKg?: number;
-
-  @IsOptional()
-  @IsNumber()
-  baseWeightKg?: number;
-
-  @IsOptional()
-  @IsInt()
-  basePrepDays?: number;
+export class UpdateProductDto extends PartialType(CreateProductDto) {
+  /* =========================
+     STATUS
+  ========================= */
 
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /* =========================
+     ESTOQUE
+  ========================= */
 
   @IsOptional()
   @IsInt()

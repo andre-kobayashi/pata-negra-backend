@@ -30,25 +30,30 @@ export class PricingService {
     }
 
     let weightKg: number | null = null;
-    let unitPrice = 0;
+    let pricePerKg = 0;        // 👉 preço por KG (CONFIGURABLE)
+    let unitPrice = 0;         // 👉 preço unitário final
     let extraPrepDays = product.basePrepDays ?? 0;
 
-    // 2️⃣ Preço base por tipo
+    /* =======================
+       2️⃣ PREÇO BASE
+    ======================= */
     switch (product.kind) {
       case ProductKind.SIMPLE:
-        if (product.priceFixed == null) {
-          throw new BadRequestException("Produto SIMPLE sem priceFixed");
+        if (product.priceRetail == null) {
+          throw new BadRequestException("Produto SIMPLE sem priceRetail");
         }
-        unitPrice = product.priceFixed;
+        unitPrice = product.priceRetail;
         weightKg = product.weightFixedKg ?? null;
         break;
 
       case ProductKind.CONFIGURABLE:
         if (product.basePricePerKg == null) {
-          throw new BadRequestException("Produto CONFIGURABLE sem basePricePerKg");
+          throw new BadRequestException(
+            "Produto CONFIGURABLE sem basePricePerKg"
+          );
         }
         weightKg = product.baseWeightKg ?? 1;
-        unitPrice = product.basePricePerKg * weightKg;
+        pricePerKg = product.basePricePerKg;
         break;
 
       case ProductKind.BUNDLE:
@@ -57,14 +62,18 @@ export class PricingService {
 
     const breakdown: any[] = [];
 
-    // 3️⃣ Aplicar seleções de atributos
+    /* =======================
+       3️⃣ APLICAR ATRIBUTOS
+    ======================= */
     for (const selection of dto.selections) {
       const attributeGroup = product.attributes.find(
         (ag) => ag.group.code === selection.groupCode
       );
 
       if (!attributeGroup) {
-        throw new BadRequestException(`Grupo inválido: ${selection.groupCode}`);
+        throw new BadRequestException(
+          `Grupo inválido: ${selection.groupCode}`
+        );
       }
 
       const option = attributeGroup.group.options.find(
@@ -72,34 +81,52 @@ export class PricingService {
       );
 
       if (!option) {
-        throw new BadRequestException(`Opção inválida para ${selection.groupCode}`);
+        throw new BadRequestException(
+          `Opção inválida para ${selection.groupCode}`
+        );
       }
 
       let priceImpact = 0;
       let weightImpactKg: number | null = null;
 
-      // 💰 Preço
-      switch (option.priceModifierType) {
-        case PriceModifierType.FIXED:
-          priceImpact = option.priceModifierValue ?? 0;
-          unitPrice += priceImpact;
-          break;
+      /* ===== 💰 PREÇO ===== */
+      if (product.kind === ProductKind.CONFIGURABLE) {
+        switch (option.priceModifierType) {
+          case PriceModifierType.FIXED:
+            priceImpact = option.priceModifierValue ?? 0;
+            pricePerKg += priceImpact;
+            break;
 
-        case PriceModifierType.PER_KG:
-          if (weightKg == null) break;
-          priceImpact = (option.priceModifierValue ?? 0) * weightKg;
-          unitPrice += priceImpact;
-          break;
+          case PriceModifierType.PER_KG:
+            priceImpact = option.priceModifierValue ?? 0;
+            pricePerKg += priceImpact;
+            break;
 
-        case PriceModifierType.PERCENT:
-          priceImpact = Math.round(
-            unitPrice * ((option.priceModifierValue ?? 0) / 100)
-          );
-          unitPrice += priceImpact;
-          break;
+          case PriceModifierType.PERCENT:
+            priceImpact = Math.round(
+              pricePerKg * ((option.priceModifierValue ?? 0) / 100)
+            );
+            pricePerKg += priceImpact;
+            break;
+        }
+      } else {
+        // SIMPLE
+        switch (option.priceModifierType) {
+          case PriceModifierType.FIXED:
+            priceImpact = option.priceModifierValue ?? 0;
+            unitPrice += priceImpact;
+            break;
+
+          case PriceModifierType.PERCENT:
+            priceImpact = Math.round(
+              unitPrice * ((option.priceModifierValue ?? 0) / 100)
+            );
+            unitPrice += priceImpact;
+            break;
+        }
       }
 
-      // ⚖️ Peso
+      /* ===== ⚖️ PESO ===== */
       if (option.weightMultiplier != null) {
         weightKg = option.weightMultiplier;
         weightImpactKg = weightKg;
@@ -115,7 +142,7 @@ export class PricingService {
         weightImpactKg = option.weightOverrideKg;
       }
 
-      // ⏱ Prazo
+      /* ===== ⏱ PRAZO ===== */
       if (option.extraPrepDays) {
         extraPrepDays += option.extraPrepDays;
       }
@@ -131,7 +158,9 @@ export class PricingService {
       });
     }
 
-    // 4️⃣ Clamp de peso
+    /* =======================
+       4️⃣ CLAMP DE PESO
+    ======================= */
     if (weightKg != null) {
       if (product.minWeightKg != null) {
         weightKg = Math.max(weightKg, product.minWeightKg);
@@ -141,7 +170,16 @@ export class PricingService {
       }
     }
 
-    // 5️⃣ Total
+    /* =======================
+       5️⃣ PREÇO FINAL
+    ======================= */
+    if (product.kind === ProductKind.CONFIGURABLE) {
+      if (weightKg == null) {
+        throw new BadRequestException("Peso final inválido");
+      }
+      unitPrice = Math.round(pricePerKg * weightKg);
+    }
+
     const total = unitPrice * quantity;
 
     return {

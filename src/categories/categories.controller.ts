@@ -1,7 +1,13 @@
-// backend/src/categories/categories.controller.ts
 import {
-  Controller, Get, Post, Body, Param, Patch, Delete,
-  UseInterceptors, UploadedFile, ParseIntPipe
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  UseInterceptors,
+  UploadedFile,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { CategoriesService } from "./categories.service";
@@ -9,18 +15,16 @@ import { CategoryImageService } from "./image.service";
 import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
 
-//import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Verifique o caminho
-import { UseGuards } from '@nestjs/common';
-
-
-@Controller("admin/categories") // Adicionei admin/ para manter o padrão
+@Controller("admin/categories")
 export class CategoriesController {
   constructor(
     private readonly service: CategoriesService,
     private readonly imageService: CategoryImageService,
   ) {}
 
-  //@UseGuards(JwtAuthGuard) // Protege o endpoint
+  /* =========================
+     CREATE
+  ========================= */
   @Post()
   @UseInterceptors(FileInterceptor("image"))
   async create(
@@ -30,24 +34,35 @@ export class CategoriesController {
     let image: string | undefined;
 
     if (file) {
-      // O seu imageService já deve converter para WebP aqui dentro
       image = await this.imageService.processImage(file.buffer);
     }
 
     return this.service.create({
       ...dto,
       image,
-      // Garantir que tipos numéricos/booleanos sejam convertidos se vierem como string
-      active: String(dto.active) === 'true',
+
+      // Garantir tipos corretos (FormData → string)
+      active: String(dto.active) === "true",
       sort: Number(dto.sort) || 0,
+      onlineMarkupActive: String(dto.onlineMarkupActive) === "true",
+      onlineMarkupPercent: dto.onlineMarkupPercent
+        ? Number(dto.onlineMarkupPercent)
+        : 12,
+      parentId:
+        dto.parentId === "null" || dto.parentId === ""
+          ? null
+          : dto.parentId,
     });
   }
 
+  /* =========================
+     UPDATE (AJUSTE SOLICITADO)
+  ========================= */
   @Patch(":id")
   @UseInterceptors(FileInterceptor("image"))
   async update(
     @Param("id") id: string,
-    @Body() dto: UpdateCategoryDto,
+    @Body() dto: any, // 🔥 any para tratar conversões manuais
     @UploadedFile() file?: Express.Multer.File,
   ) {
     let image: string | undefined;
@@ -56,19 +71,39 @@ export class CategoriesController {
       image = await this.imageService.processImage(file.buffer);
     }
 
-    return this.service.update(id, {
+    // 🔥 Conversões explícitas (FormData sempre chega como string)
+    const updateDto: UpdateCategoryDto = {
       ...dto,
       ...(image && { image }),
-      active: dto.active !== undefined ? String(dto.active) === 'true' : undefined,
-      sort: dto.sort !== undefined ? Number(dto.sort) : undefined,
-    });
+
+      active: dto.active === "true",
+      sort: dto.sort ? Number(dto.sort) : 0,
+
+      onlineMarkupActive: dto.onlineMarkupActive === "true",
+      onlineMarkupPercent: dto.onlineMarkupPercent
+        ? Number(dto.onlineMarkupPercent)
+        : 12,
+
+      parentId:
+        dto.parentId === "null" || dto.parentId === ""
+          ? null
+          : dto.parentId,
+    };
+
+    return this.service.update(id, updateDto);
   }
 
+  /* =========================
+     LISTAGEM
+  ========================= */
   @Get()
   findAll() {
     return this.service.findAll();
   }
 
+  /* =========================
+     DELETE
+  ========================= */
   @Delete(":id")
   remove(@Param("id") id: string) {
     return this.service.remove(id);

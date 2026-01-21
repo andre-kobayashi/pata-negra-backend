@@ -8,6 +8,7 @@ import { AppService } from "./app.service";
 import { AuthModule } from "./auth/auth.module";
 import { ProductsModule } from "./products/products.module";
 import { PricingModule } from "./pricing/pricing.module";
+import { AttributesModule } from "./attributes/attributes.module";    
 
 import { JwtAuthGuard } from "./auth/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
@@ -23,7 +24,8 @@ import { AiModule } from "./dexter/ai.module";
     AuthModule,
     ProductsModule,
     CategoriesModule,
-    PricingModule, // 👈 ESSENCIAL (pricing/quote)
+    PricingModule,
+    AttributesModule,
     AiModule,
   ],
   controllers: [AppController],
